@@ -1,0 +1,21 @@
+--- a/include/ref/ref_uci.h
++++ b/include/ref/ref_uci.h
+@@ -16,13 +16,18 @@
+ #define _REF_UCI_H_
+ 
+ #ifdef __cplusplus
+ extern "C" {
+ #endif                          /* __cplusplus */
+ 
++#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
++#include <linux/switch.h>
++#else
++#include <net/switch.h>
++#endif
+ 
+ #if defined(IN_SWCONFIG)
+ int
+ qca_ar8327_sw_switch_ext(struct switch_dev *dev,
+ 			 	const struct switch_attr *attr,
+ 			 	struct switch_val *val);
+ #endif

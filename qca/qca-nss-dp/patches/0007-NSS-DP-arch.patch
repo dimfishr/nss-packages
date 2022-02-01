@@ -1,0 +1,21 @@
+--- /dev/null
++++ b/exports/nss_dp_arch.h
+@@ -0,0 +1,18 @@
++#ifndef __NSS_DP_ARCH_H
++#define __NSS_DP_ARCH_H
++
++#if defined(ARCH_INCLUDE_ipq807x) || defined(ARCH_INCLUDE_ipq807x_64) 
++
++#include "../hal/arch/ipq807x/nss_ipq807x.h"
++
++#elif defined(ARCH_INCLUDE_ipq50xx_64) || defined(ARCH_INCLUDE_ipq50xx)
++
++#include "../hal/arch/ipq50xx/nss_ipq50xx.h"
++
++#elif defined(ARCH_INCLUDE_ipq60xx) || defined(ARCH_INCLUDE_ipq60xx_64)
++#include "../hal/arch/ipq60xx/nss_ipq60xx.h"
++#else
++#error "NEed to define ARCH_INCLUDE_$(SOC)"
++#endif
++
++#endif

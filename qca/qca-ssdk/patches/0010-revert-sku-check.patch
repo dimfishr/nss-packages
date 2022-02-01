@@ -1,0 +1,237 @@
+--- a/src/init/ssdk_clk.c
++++ b/src/init/ssdk_clk.c
+@@ -28,15 +28,12 @@
+ #include <linux/of.h>
+ #include <linux/reset.h>
+ #include <linux/clk.h>
+ #include <linux/clk-provider.h>
+ #include <linux/clkdev.h>
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-#include <soc/qcom/socinfo.h>
+-#endif
+ 
+ #if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0))
+ struct device_node *clock_node = NULL;
+ static struct clk *uniphy_port_clks[UNIPHYT_CLK_MAX] = {0};
+ 
+ struct device_node *rst_node = NULL;
+@@ -54,28 +51,12 @@
+ 
+ 	if(ssdk_is_emulation(0)){
+ 		SSDK_INFO("clock_id %s rate %d on emulation platform\n",clock_id, rate);
+ 		return;
+ 	}
+ 
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-	if ((!strcmp("uniphy1_sys_clk", clock_id)) ||
+-		(!strcmp("uniphy1_ahb_clk", clock_id))) {
+-		if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-			SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-			return;
+-		}
+-	}
+-	if ((!strcmp("uniphy2_sys_clk", clock_id)) ||
+-		(!strcmp("uniphy2_ahb_clk", clock_id))) {
+-		if (cpu_is_uniphy2_enabled() == A_FALSE) {
+-			SSDK_INFO("UNIPHY 2 is not available on this SKU!\n");
+-			return;
+-		}
+-}
+-#endif
+ 	clk = of_clk_get_by_name(node, clock_id);
+ 	if (!IS_ERR(clk)) {
+ 		if (rate)
+ 			clk_set_rate(clk, rate);
+ 
+ 		clk_prepare_enable(clk);
+@@ -157,32 +138,12 @@
+ 
+ 	if(ssdk_is_emulation(dev_id)){
+ 		SSDK_INFO("clock_type %d rate %d on emulation platform\n",
+ 					clock_type, rate);
+ 		return;
+ 	}
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-	if ((clock_type == NSS_PORT5_RX_CLK_E) ||
+-		(clock_type == NSS_PORT5_TX_CLK_E)) {
+-		a_uint32_t mode;
+-		mode = ssdk_dt_global_get_mac_mode(dev_id, SSDK_UNIPHY_INSTANCE1);
+-		if (mode != PORT_WRAPPER_MAX) {
+-			if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-				return;
+-			}
+-		}
+-	}
+-	if ((clock_type == NSS_PORT6_RX_CLK_E) ||
+-		(clock_type == NSS_PORT6_TX_CLK_E)) {
+-		if (cpu_is_uniphy2_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 2 is not available on this SKU!\n");
+-				return;
+-		}
+-	}
+-#endif
+ 	uniphy_clk = uniphy_port_clks[clock_type];
+ 	if (!IS_ERR(uniphy_clk)) {
+ 		if (rate)
+ 			if (clk_set_rate(uniphy_clk, rate))
+ 				SSDK_INFO("%d set rate=%d fail\n", clock_type, rate);
+ 	} else
+@@ -201,32 +162,12 @@
+ 
+ 	if(ssdk_is_emulation(dev_id)){
+ 		SSDK_INFO("clock_type %d enable %d on emulation platform\n",
+ 					clock_type, enable);
+ 		return;
+ 	}
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-	if ((clock_type == UNIPHY0_PORT5_RX_CLK_E) ||
+-		(clock_type == UNIPHY0_PORT5_TX_CLK_E)) {
+-		a_uint32_t mode;
+-		mode = ssdk_dt_global_get_mac_mode(dev_id, SSDK_UNIPHY_INSTANCE1);
+-		if (mode != PORT_WRAPPER_MAX) {
+-			if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-				return;
+-			}
+-		}
+-	}
+-	if ((clock_type == UNIPHY2_PORT6_RX_CLK_E) ||
+-		(clock_type == UNIPHY2_PORT6_TX_CLK_E)) {
+-		if (cpu_is_uniphy2_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 2 is not available on this SKU!\n");
+-				return;
+-		}
+-	}
+-#endif
+ 	uniphy_clk = uniphy_port_clks[clock_type];
+ 	if (!IS_ERR(uniphy_clk)) {
+ 		if (enable) {
+ 			if (clk_prepare_enable(uniphy_clk))
+ 				SSDK_ERROR("clock enable fail!\n");
+ 		} else
+@@ -906,19 +847,12 @@
+ #endif
+ 
+ #if defined(HPPE)
+ static
+ void ssdk_uniphy1_clock_source_set(void)
+ {
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-	if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-		SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-		return;
+-	}
+-#endif
+-
+ #if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0))
+ 	clk_set_parent(uniphy_port_clks[PORT5_RX_SRC_E],
+ 			uniphy_raw_clks[2]->clk);
+ 	clk_set_parent(uniphy_port_clks[PORT5_TX_SRC_E],
+ 			uniphy_raw_clks[3]->clk);
+ #endif
+@@ -1006,18 +940,12 @@
+ 
+ 	for (i = UNIPHY_RX; i <= UNIPHY_TX; i++) {
+ 		if (mode == PORT_WRAPPER_MAX) {
+ 			id = SSDK_UNIPHY_INSTANCE0*2 + i;
+ 		} else {
+ 			id = SSDK_UNIPHY_INSTANCE1*2 + i;
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-			if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-				return;
+-			}
+-#endif
+ 		}
+ 
+ 		if (clk_set_parent(uniphy_port_clks[PORT5_RX_SRC_E + i],
+ 			uniphy_raw_clks[id]->clk)) {
+ 			SSDK_ERROR("set parent fail!\n");
+ 		}
+--- a/src/adpt/hppe/adpt_hppe_portctrl.c
++++ b/src/adpt/hppe/adpt_hppe_portctrl.c
+@@ -52,15 +52,12 @@
+ #if defined(APPE)
+ #include "adpt_appe_portctrl.h"
+ #include "appe_l2_vp.h"
+ #include "appe_tunnel_reg.h"
+ #include "appe_tunnel.h"
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-#include <soc/qcom/socinfo.h>
+-#endif
+ 
+ #define PORT4_PCS_SEL_GMII_FROM_PCS0 1
+ #define PORT4_PCS_SEL_RGMII 0
+ 
+ #define PORT5_PCS_SEL_RGMII 0
+ #define PORT5_PCS_SEL_GMII_FROM_PCS0 1
+@@ -4728,26 +4725,12 @@
+ 	memset(&uniphy_channel2_input_output_4, 0, sizeof(uniphy_channel2_input_output_4));
+ 	memset(&uniphy_channel3_input_output_4, 0, sizeof(uniphy_channel3_input_output_4));
+ 	memset(&uniphy_channel4_input_output_4, 0, sizeof(uniphy_channel4_input_output_4));
+ 
+ 	if (port_id == SSDK_PHYSICAL_PORT1)
+ 	{
+-#if defined(APPE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-		if (uniphy_index == SSDK_UNIPHY_INSTANCE1) {
+-			if (cpu_is_uniphy1_enabled() == A_FALSE) {
+-				SSDK_INFO("UNIPHY 1 is not available on this SKU!\n");
+-				return;
+-			}
+-		}
+-		if (uniphy_index == SSDK_UNIPHY_INSTANCE2) {
+-			if (cpu_is_uniphy2_enabled() == A_FALSE) {
+-					SSDK_INFO("UNIPHY 2 is not available on this SKU!\n");
+-					return;
+-			}
+-		}
+-#endif
+ 		hppe_uniphy_channel0_input_output_4_get(dev_id, uniphy_index,
+ 			&uniphy_channel0_input_output_4);
+ 		uniphy_channel0_input_output_4.bf.newaddedfromhere_ch0_adp_sw_rstn = 0;
+ 		hppe_uniphy_channel0_input_output_4_set(dev_id, uniphy_index,
+ 			&uniphy_channel0_input_output_4);
+ 		uniphy_channel0_input_output_4.bf.newaddedfromhere_ch0_adp_sw_rstn = 1;
+--- a/src/adpt/hppe/adpt_hppe_uniphy.c
++++ b/src/adpt/hppe/adpt_hppe_uniphy.c
+@@ -31,15 +31,12 @@
+ #include "adpt_hppe.h"
+ #include "adpt_hppe_uniphy.h"
+ #if defined(CPPE)
+ #include "adpt_cppe_uniphy.h"
+ #include "adpt_cppe_portctrl.h"
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-#include <soc/qcom/socinfo.h>
+-#endif
+ 
+ extern void adpt_hppe_gcc_port_speed_clock_set(a_uint32_t dev_id,
+ 				a_uint32_t port_id, fal_port_speed_t phy_speed);
+ 
+ static a_uint32_t
+ adpt_hppe_port_get_by_uniphy(a_uint32_t dev_id, a_uint32_t uniphy_index,
+@@ -1066,21 +1063,12 @@
+ 
+ 	if (mode == PORT_WRAPPER_MAX) {
+ 		ssdk_uniphy_raw_clock_reset(index);
+ 		return SW_OK;
+ 	}
+ 
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
+-	if (((index == SSDK_UNIPHY_INSTANCE1)
+-		&& (cpu_is_uniphy1_enabled() == A_FALSE)) ||
+-		((index == SSDK_UNIPHY_INSTANCE2)
+-		&& (cpu_is_uniphy2_enabled() == A_FALSE))) {
+-		SSDK_INFO("ssdk doesn't support uniphy:%d on platform\n", index);
+-		return SW_OK;
+-	}
+-#endif
+ 	switch(mode) {
+ 		case PORT_WRAPPER_PSGMII:
+ 		case PORT_WRAPPER_PSGMII_FIBER:
+ 			rv = __adpt_hppe_uniphy_psgmii_mode_set(dev_id, index);
+ 			break;
+ 

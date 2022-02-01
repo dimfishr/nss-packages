@@ -1,13 +1,17 @@
-From 472c0c8132784608312c80c4b02c03ea7c132235 Mon Sep 17 00:00:00 2001
+From 599f19551dc8db3cb396e4c139a73bd72300ebf5 Mon Sep 17 00:00:00 2001
 From: Robert Marko <robimarko@gmail.com>
-Date: Wed, 12 May 2021 13:41:12 +0200
-Subject: [PATCH] SSDK: config: add kernel 5.10
+Date: Fri, 24 Dec 2021 19:39:02 +0100
+Subject: [PATCH] SSDK: config: add kernel 5.15
 
 This is purely to identify it and be able to set
 flags correctly.
 
 Signed-off-by: Robert Marko <robimarko@gmail.com>
 ---
+ config            | 6 +++++-
+ make/linux_opt.mk | 4 ++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
  config            | 6 +++++-
  make/linux_opt.mk | 4 ++--
  2 files changed, 7 insertions(+), 3 deletions(-)
