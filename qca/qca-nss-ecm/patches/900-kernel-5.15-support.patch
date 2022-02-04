@@ -1,0 +1,206 @@
+--- a/ecm_interface.c
++++ b/ecm_interface.c
+@@ -7503,20 +7503,28 @@ static int ecm_interface_wifi_event_rx(struct
+ 	msg.msg_flags = 0;
+ 	msg.msg_name  = addr;
+ 	msg.msg_namelen = sizeof(struct sockaddr_nl);
+ 	msg.msg_control = NULL;
+ 	msg.msg_controllen = 0;
+ 	iov_iter_init(&msg.msg_iter, READ, &iov, 1, 1);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ 	oldfs = get_fs();
+ 	set_fs(KERNEL_DS);
++#else
++	oldfs = force_uaccess_begin();
++#endif
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
+ 	size = sock_recvmsg(sock, &msg, len, msg.msg_flags);
+ #else
+ 	size = sock_recvmsg(sock, &msg, msg.msg_flags);
+ #endif
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ 	set_fs(oldfs);
++#else
++	force_uaccess_end(oldfs);
++#endif
+ 
+ 	return size;
+ }
+ 
+ /*
+  * ecm_interface_wifi_event_thread
+--- a/ecm_conntrack_notifier.c
++++ b/ecm_conntrack_notifier.c
+@@ -383,13 +383,17 @@
+ #else
+ /*
+  * struct nf_ct_event_notifier ecm_conntrack_notifier
+  *	Netfilter conntrack event system to monitor connection tracking changes
+  */
+ static struct nf_ct_event_notifier ecm_conntrack_notifier = {
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ 	.fcn	= ecm_conntrack_event,
++#else
++	.ct_event	= ecm_conntrack_event,
++#endif
+ };
+ #endif
+ #endif
+ 
+ /*
+  * ecm_conntrack_notifier_stop()
+@@ -418,41 +422,57 @@
+ 					(u32 *)&ecm_conntrack_notifier_stopped);
+ 
+ #ifdef CONFIG_NF_CONNTRACK_EVENTS
+ 	/*
+ 	 * Eventing subsystem is available so we register a notifier hook to get fast notifications of expired connections
+ 	 */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ #ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
+ 	result = nf_conntrack_register_chain_notifier(&init_net, &ecm_conntrack_notifier);
+ #else
+ 	result = nf_conntrack_register_notifier(&init_net, &ecm_conntrack_notifier);
+ #endif
+ 	if (result < 0) {
+ 		DEBUG_ERROR("Can't register nf notifier hook.\n");
+ 		debugfs_remove_recursive(ecm_conntrack_notifier_dentry);
+ 		return result;
+ 	}
++#else
++#ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
++	nf_conntrack_register_chain_notifier(&init_net, &ecm_conntrack_notifier);
++#else
++	nf_conntrack_register_notifier(&init_net, &ecm_conntrack_notifier);
++#endif
++#endif
+ #endif
+ 
+ 	return 0;
+ }
+ EXPORT_SYMBOL(ecm_conntrack_notifier_init);
+ 
+ /*
+  * ecm_conntrack_notifier_exit()
+  */
+ void ecm_conntrack_notifier_exit(void)
+ {
+ 	DEBUG_INFO("ECM Conntrack Notifier exit\n");
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
+ #ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
+ 	nf_conntrack_unregister_chain_notifier(&init_net, &ecm_conntrack_notifier);
+ #else
+ 	nf_conntrack_unregister_notifier(&init_net, &ecm_conntrack_notifier);
++#endif
++#else
++#ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
++	nf_conntrack_unregister_chain_notifier(&init_net);
++#else
++	nf_conntrack_unregister_notifier(&init_net);
++#endif
+ #endif
+ 	/*
+ 	 * Remove the debugfs files recursively.
+ 	 */
+ 	if (ecm_conntrack_notifier_dentry) {
+ 		debugfs_remove_recursive(ecm_conntrack_notifier_dentry);
+ 	}
+ }
+ EXPORT_SYMBOL(ecm_conntrack_notifier_exit);
+--- a/ecm_conntrack_notifier.c
++++ b/ecm_conntrack_notifier.c
+@@ -316,14 +316,16 @@
+ /*
+  * ecm_conntrack_event()
+  *	Callback event invoked when conntrack connection state changes, currently we handle destroy events to quickly release state
+  */
+ #ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
+ static int ecm_conntrack_event(struct notifier_block *this, unsigned long events, void *ptr)
++#elif LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
++static int ecm_conntrack_event(unsigned int events, struct nf_ct_event *item)
+ #else
+-static int ecm_conntrack_event(unsigned int events, struct nf_ct_event *item)
++static int ecm_conntrack_event(unsigned int events, const struct nf_ct_event *item)
+ #endif
+ {
+ #ifdef CONFIG_NF_CONNTRACK_CHAIN_EVENTS
+ 	struct nf_ct_event *item = (struct nf_ct_event *)ptr;
+ #endif
+ 	struct nf_conn *ct = item->ct;
+--- a/ecm_tracker_datagram.c
++++ b/ecm_tracker_datagram.c
+@@ -200,13 +200,13 @@
+ }
+ 
+ /*
+  * ecm_tracker_datagram_discard_all()
+  *	Discard all tracked data
+  */
+-static void ecm_tracker_datagram_discard_all(struct ecm_tracker_datagram_internal_instance *dtii)
++void ecm_tracker_datagram_discard_all(struct ecm_tracker_datagram_internal_instance *dtii)
+ {
+ 	int32_t src_count;
+ 	int32_t dest_count;
+ 	DEBUG_CHECK_MAGIC(dtii, ECM_TRACKER_DATAGRAM_INSTANCE_MAGIC, "%px: magic failed", dtii);
+ 
+ 	spin_lock_bh(&dtii->lock);
+@@ -361,13 +361,13 @@
+ }
+ 
+ /*
+  * ecm_tracker_datagram_datagram_size_get()
+  *	Return size in bytes of datagram at index i that was sent to the target
+  */
+-static int32_t ecm_tracker_datagram_datagram_size_get(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, int32_t i)
++int32_t ecm_tracker_datagram_datagram_size_get(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, int32_t i)
+ {
+ 	struct ecm_tracker_datagram_internal_instance *dtii = (struct ecm_tracker_datagram_internal_instance *)uti;
+ 
+ 	int32_t size;
+ 	struct sk_buff *skb;
+ 	DEBUG_CHECK_MAGIC(dtii, ECM_TRACKER_DATAGRAM_INSTANCE_MAGIC, "%px: magic failed", dtii);
+@@ -409,13 +409,13 @@
+ }
+ 
+ /*
+  * ecm_tracker_datagram_datagram_read()
+  *	Read size bytes from datagram at index i into the buffer
+  */
+-static int ecm_tracker_datagram_datagram_read(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, int32_t i, int32_t offset, int32_t size, void *buffer)
++int ecm_tracker_datagram_datagram_read(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, int32_t i, int32_t offset, int32_t size, void *buffer)
+ {
+ 	struct ecm_tracker_datagram_internal_instance *dtii = (struct ecm_tracker_datagram_internal_instance *)uti;
+ 	int res;
+ 	struct sk_buff *skb;
+ 	DEBUG_CHECK_MAGIC(dtii, ECM_TRACKER_DATAGRAM_INSTANCE_MAGIC, "%px: magic failed", dtii);
+ 	DEBUG_TRACE("%px: datagram %d read at offset %d for %d bytes for %d\n", dtii, i, offset, size, sender);
+@@ -463,13 +463,13 @@
+ }
+ 
+ /*
+  * ecm_tracker_datagram_datagram_add()
+  *	Append the datagram onto the tracker queue for the given target
+  */
+-static bool ecm_tracker_datagram_datagram_add(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, struct sk_buff *skb)
++bool ecm_tracker_datagram_datagram_add(struct ecm_tracker_datagram_instance *uti, ecm_tracker_sender_type_t sender, struct sk_buff *skb)
+ {
+ 	struct ecm_tracker_datagram_internal_instance *dtii = (struct ecm_tracker_datagram_internal_instance *)uti;
+ 	struct sk_buff *skbc;
+ 	DEBUG_CHECK_MAGIC(dtii, ECM_TRACKER_DATAGRAM_INSTANCE_MAGIC, "%px: magic failed", dtii);
+ 	DEBUG_TRACE("%px: datagram %px add for %d\n", dtii, skb, sender);
+ 
+@@ -641,13 +641,13 @@
+ 
+ #ifdef ECM_STATE_OUTPUT_ENABLE
+ /*
+  * ecm_tracker_datagram_state_text_get_callback()
+  *	Return state
+  */
+-static int ecm_tracker_datagram_state_text_get_callback(struct ecm_tracker_instance *ti, struct ecm_state_file_instance *sfi)
++int ecm_tracker_datagram_state_text_get_callback(struct ecm_tracker_instance *ti, struct ecm_state_file_instance *sfi)
+ {
+ 	int result;
+ 	struct ecm_tracker_datagram_internal_instance *dtii = (struct ecm_tracker_datagram_internal_instance *)ti;
+ #ifdef ECM_TRACKER_DPI_SUPPORT_ENABLE
+ 	int32_t src_count;
+ 	int32_t src_bytes_total;
